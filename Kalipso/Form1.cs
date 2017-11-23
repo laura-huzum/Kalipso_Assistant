@@ -13,6 +13,8 @@ using System.Windows.Forms;
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Speech.V1;
 using Grpc.Auth;
+using System.Net;
+using System.Net.Sockets;
 
 namespace Kalipso
 {
@@ -23,8 +25,9 @@ namespace Kalipso
         WaveIn waveIn;
         WaveOut waveOut;
         WaveFileWriter writer;
-        WaveFileReader reader;
+        //WaveFileReader reader;
         string output = "audio.raw";
+        string currentCmd;
 
         public Form1()
         {
@@ -40,10 +43,7 @@ namespace Kalipso
 
             btnRecordVoice.Enabled = true;
             btnSave.Enabled = false;
-            btnSpeechInfo.Enabled = false;
-
-
-
+            btnOk.Enabled = false;
         }
 
         void waveIn_DataAvailable(object sender, WaveInEventArgs e)
@@ -55,17 +55,53 @@ namespace Kalipso
         private void waveOut_PlaybackStopped(object sender, StoppedEventArgs e)
         {
             waveOut.Stop();
-            reader.Close();
-            reader = null;
+            //reader.Close();
+           // reader = null;
         }
 
 
-        private void btnSpeechInfo_Click(object sender, EventArgs e)
+        private void btnOk_Click(object sender, EventArgs e)
+        {
+            Execute();
+        }
+
+        private void Execute()
+        {
+            if (currentCmd.Trim().Equals("battery"))
+            {
+                PowerStatus status = SystemInformation.PowerStatus;
+                textBoxAns.Text = "Battery:" + status.BatteryLifePercent.ToString("P0");
+            }
+            else if(currentCmd.Trim().Equals("Give my IP", StringComparison.CurrentCultureIgnoreCase))
+            {
+                var host = Dns.GetHostEntry(Dns.GetHostName());
+                string address = "";
+                foreach (var ip in host.AddressList)
+                    address = address + ip.ToString() + "\n";
+                textBoxAns.Text = address;
+            }
+            else if(currentCmd.Trim().Equals("date"))
+            {
+                textBoxAns.Text = "Today is " + DateTime.Today.ToString("d");
+            }
+            else if (currentCmd.Trim().Equals("time"))
+            {
+                textBoxAns.Text = "It's " + DateTime.Now.ToString("t");
+            }
+            else
+            {
+                textBoxAns.Text = ("de bota sa ma iei");
+            }
+        }
+
+        private void Decode()
         {
 
             btnRecordVoice.Enabled = true;
             btnSave.Enabled = false;
-            btnSpeechInfo.Enabled = false;
+            btnOk.Enabled = true;
+
+            textBoxAns.Text = "Decoding...";
 
             if (File.Exists("audio.raw"))
             {
@@ -79,28 +115,28 @@ namespace Kalipso
                 }, RecognitionAudio.FromFile("audio.raw"));
 
 
-                textBox1.Text = "";
+                currentCmd = "";
 
                 foreach (var result in response.Results)
                 {
                     foreach (var alternative in result.Alternatives)
                     {
-                        textBox1.Text = textBox1.Text + " " + alternative.Transcript;
+                        currentCmd = currentCmd + " " + alternative.Transcript;
                     }
                 }
 
-                if (textBox1.Text.Length == 0)
-                    textBox1.Text = "No Data ";
+                textBoxAns.Text = currentCmd;
+
+                if (textBoxAns.Text.Length == 0)
+                    textBoxAns.Text = "No Data ";
+
 
             }
             else
             {
 
-                textBox1.Text = "Audio File Missing ";
-
+                textBoxAns.Text = "Audio File Missing ";
             }
-
-
         }
 
         private void btnRecordVoice_Click(object sender, EventArgs e)
@@ -115,59 +151,52 @@ namespace Kalipso
 
             btnRecordVoice.Enabled = false;
             btnSave.Enabled = true;
-            btnSpeechInfo.Enabled = false;
+            btnOk.Enabled = false;
 
-        }
-
-
-        private void btnPlayAudio_Click(object sender, EventArgs e)
-        {
-            if (File.Exists("audio.raw"))
-            {
-                reader = new WaveFileReader("audio.raw");
-                waveOut.Init(reader);
-                waveOut.Play();
-            }
-            else
-            {
-                MessageBox.Show("No Audio File Found");
-            }
         }
 
 
         private void btnSave_Click(object sender, EventArgs e)
         {
-            waveIn.StopRecording();
-
-            if (File.Exists("audio.raw"))
-                File.Delete("audio.raw");
-
-            writer = new WaveFileWriter(output, waveIn.WaveFormat);
-
-            btnRecordVoice.Enabled = false;
-            btnSave.Enabled = false;
-            btnSpeechInfo.Enabled = true;
-
-            byte[] buffer = new byte[bwp.BufferLength];
-            int offset = 0;
-            int count = bwp.BufferLength;
-
-            var read = bwp.Read(buffer, offset, count);
-            if (count > 0)
+            try
             {
-                writer.Write(buffer, offset, read);
+                waveIn.StopRecording();
+
+                writer = new WaveFileWriter(output, waveIn.WaveFormat);
+
+                btnRecordVoice.Enabled = false;
+                btnSave.Enabled = false;
+                btnOk.Enabled = true;
+
+                byte[] buffer = new byte[bwp.BufferLength];
+                int offset = 0;
+                int count = bwp.BufferLength;
+
+                var read = bwp.Read(buffer, offset, count);
+                if (count > 0)
+                {
+                    writer.Write(buffer, offset, read);
+                }
+
+                waveIn.Dispose();
+                waveIn = new WaveIn();
+                waveIn.DataAvailable += new EventHandler<WaveInEventArgs>(waveIn_DataAvailable);
+                waveIn.WaveFormat = new NAudio.Wave.WaveFormat(16000, 1);
+                writer.Close();
+                writer = null;
+
+               // reader = new WaveFileReader("audio.raw"); 
+      
+                Decode();
+
+                // reader.Dispose();
+                if (File.Exists("audio.raw"))
+                    File.Delete("audio.raw");
             }
-
-            waveIn.Dispose();
-            waveIn = null;
-            writer.Close();
-            writer = null;
-
-            reader = new WaveFileReader("audio.raw"); // (new MemoryStream(bytes));
-            waveOut.Init(reader);
-            waveOut.PlaybackStopped += new EventHandler<StoppedEventArgs>(waveOut_PlaybackStopped);
-            waveOut.Play();
-
+            catch(Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
 
         }
     }

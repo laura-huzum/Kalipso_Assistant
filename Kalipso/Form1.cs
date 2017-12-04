@@ -9,6 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Diagnostics;
 
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Speech.V1;
@@ -28,6 +29,33 @@ namespace Kalipso
         //WaveFileReader reader;
         string output = "audio.raw";
         string currentCmd;
+
+        Dictionary<String, int> timeoffsetEU = new Dictionary<string, int>()
+        {
+            { "Accra", 0 },
+            { "Dublin", 0 },
+            { "Lisbon", 0 },
+            { "London", 0 },
+
+            { "Berlin", 1 },
+            { "Madrid", 1 },
+            { "Paris", 1 },
+            { "Rome", 1 },
+            { "Vienna", 1 },
+            { "Warsaw", 1 },
+
+            { "Athens", 2 },
+            { "Bucharest", 2 },
+            { "Helsinki", 2 },
+            { "Jerusalem", 2 },
+            { "Kiev", 2 },
+
+            { "Istanbul", 3 },
+            { "Moscow", 3 },
+            { "Minsk", 3 },
+            
+        };
+
 
         public Form1()
         {
@@ -72,7 +100,7 @@ namespace Kalipso
                 PowerStatus status = SystemInformation.PowerStatus;
                 textBoxAns.Text = "Battery:" + status.BatteryLifePercent.ToString("P0");
             }
-            else if(currentCmd.Trim().Equals("Give my IP", StringComparison.CurrentCultureIgnoreCase))
+            else if (currentCmd.Trim().Equals("Give my IP", StringComparison.CurrentCultureIgnoreCase))
             {
                 var host = Dns.GetHostEntry(Dns.GetHostName());
                 string address = "";
@@ -80,15 +108,51 @@ namespace Kalipso
                     address = address + ip.ToString() + "\n";
                 textBoxAns.Text = address;
             }
-            else if(currentCmd.Trim().Equals("date"))
+            else if (currentCmd.Trim().Equals("date"))
             {
                 textBoxAns.Text = "Today is " + DateTime.Today.ToString("d");
             }
-            else if (currentCmd.Trim().Equals("time"))
+            else if (currentCmd.Trim().Equals("my time"))
             {
                 textBoxAns.Text = "It's " + DateTime.Now.ToString("t");
             }
+            else if (currentCmd.Trim().Equals("calculator"))
+            {
+                Process.Start(@"C:\Windows\System32\calc.exe");
+            }
+            else if (currentCmd.Trim().Equals("paint"))
+            {
+                Process.Start(@"C:\Windows\System32\mspaint.exe");
+            }
+            else if (currentCmd.Trim().Equals("perf monitor"))
+            {
+                Process.Start(@"C:\WINDOWS\system32\perfmon.msc");
+            }
+            else if (currentCmd.Trim().Equals("command line")) {
+                Process p = new Process();
+                p.StartInfo.FileName = "cmd.exe";
+                p.StartInfo.WorkingDirectory = @"C:\";
+                p.StartInfo.UseShellExecute = false;
+                p.Start();
+            }
+            else if (currentCmd.Trim().Equals("perf monitor"))
+            {
+                Process.Start(@"C:\WINDOWS\system32\perfmon.msc");
+            }
+            else if (currentCmd.Trim().Equals("bye bye"))
+            {
+                Application.Exit();
+            }
+            else if (currentCmd.Trim().StartsWith("time") && currentCmd.Trim().Count(f => f == ' ') == 1)
+            {
+                string city = currentCmd.Trim().Split(' ').ToArray()[1];
+                //DateTime.Now.AddHours(timeoffsetEU);
+
+                //textBoxAns.Text = "Time at " + city + " " +  time.ToString("hh:mm tt");
+                
+            }
             else
+
             {
                 textBoxAns.Text = ("de bota sa ma iei");
             }
@@ -193,11 +257,25 @@ namespace Kalipso
                 if (File.Exists("audio.raw"))
                     File.Delete("audio.raw");
             }
+
             catch(Exception ex)
             {
                 MessageBox.Show(ex.Message);
             }
 
+        }
+
+        private void Form1_MouseClick(object sender, MouseEventArgs e)
+        {
+            string cmd = "Time London";
+            string city = cmd.Split(' ').ToArray()[1];
+            TimeZoneInfo timeZoneInfo = TimeZoneInfo.FindSystemTimeZoneById(city);
+            DateTime utc = DateTime.UtcNow;
+            if (timeZoneInfo != null)
+            {
+                var time = TimeZoneInfo.ConvertTime(utc, timeZoneInfo);
+                textBoxAns.Text = "Time at " + city + " " + time.ToString("hh:mm tt");
+            }
         }
     }
 }

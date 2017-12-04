@@ -16,6 +16,8 @@ using Google.Cloud.Speech.V1;
 using Grpc.Auth;
 using System.Net;
 using System.Net.Sockets;
+using System.Net.Mail;
+
 
 namespace Kalipso
 {
@@ -29,6 +31,9 @@ namespace Kalipso
         //WaveFileReader reader;
         string output = "audio.raw";
         string currentCmd;
+
+		MailSender mailSender;
+		Translator translator;
 
         Dictionary<String, int> timeoffsetEU = new Dictionary<string, int>()
         {
@@ -72,7 +77,10 @@ namespace Kalipso
             btnRecordVoice.Enabled = true;
             btnSave.Enabled = false;
             btnOk.Enabled = false;
-        }
+
+			mailSender = new MailSender();
+			//translator = new Translator();
+		}
 
         void waveIn_DataAvailable(object sender, WaveInEventArgs e)
         {
@@ -95,12 +103,14 @@ namespace Kalipso
 
         private void Execute()
         {
-            if (currentCmd.Trim().Equals("battery"))
+			currentCmd = currentCmd.ToLower().Trim();
+
+            if (currentCmd.Equals("battery"))
             {
                 PowerStatus status = SystemInformation.PowerStatus;
                 textBoxAns.Text = "Battery:" + status.BatteryLifePercent.ToString("P0");
             }
-            else if (currentCmd.Trim().Equals("Give my IP", StringComparison.CurrentCultureIgnoreCase))
+            else if (currentCmd.Equals("Give my IP", StringComparison.CurrentCultureIgnoreCase))
             {
                 var host = Dns.GetHostEntry(Dns.GetHostName());
                 string address = "";
@@ -108,42 +118,42 @@ namespace Kalipso
                     address = address + ip.ToString() + "\n";
                 textBoxAns.Text = address;
             }
-            else if (currentCmd.Trim().Equals("date"))
+            else if (currentCmd.Equals("date"))
             {
                 textBoxAns.Text = "Today is " + DateTime.Today.ToString("d");
             }
-            else if (currentCmd.Trim().Equals("my time"))
+            else if (currentCmd.Equals("my time"))
             {
                 textBoxAns.Text = "It's " + DateTime.Now.ToString("t");
             }
-            else if (currentCmd.Trim().Equals("calculator"))
+            else if (currentCmd.Equals("calculator"))
             {
                 Process.Start(@"C:\Windows\System32\calc.exe");
             }
-            else if (currentCmd.Trim().Equals("paint"))
+            else if (currentCmd.Equals("paint"))
             {
                 Process.Start(@"C:\Windows\System32\mspaint.exe");
             }
-            else if (currentCmd.Trim().Equals("perf monitor"))
+            else if (currentCmd.Equals("perf monitor"))
             {
                 Process.Start(@"C:\WINDOWS\system32\perfmon.msc");
             }
-            else if (currentCmd.Trim().Equals("command line")) {
+            else if (currentCmd.Equals("command line")) {
                 Process p = new Process();
                 p.StartInfo.FileName = "cmd.exe";
                 p.StartInfo.WorkingDirectory = @"C:\";
                 p.StartInfo.UseShellExecute = false;
                 p.Start();
             }
-            else if (currentCmd.Trim().Equals("perf monitor"))
+            else if (currentCmd.Equals("perf monitor"))
             {
                 Process.Start(@"C:\WINDOWS\system32\perfmon.msc");
             }
-            else if (currentCmd.Trim().Equals("bye bye"))
+            else if (currentCmd.Equals("bye bye"))
             {
                 Application.Exit();
             }
-            else if (currentCmd.Trim().StartsWith("time") && currentCmd.Trim().Count(f => f == ' ') == 1)
+            else if (currentCmd.StartsWith("time") && currentCmd.Trim().Count(f => f == ' ') == 1)
             {
                 string city = currentCmd.Trim().Split(' ').ToArray()[1];
                 //DateTime.Now.AddHours(timeoffsetEU);
@@ -151,6 +161,11 @@ namespace Kalipso
                 //textBoxAns.Text = "Time at " + city + " " +  time.ToString("hh:mm tt");
                 
             }
+			else if (currentCmd.StartsWith("send mail"))
+			{
+				string mailText = currentCmd.Trim().Substring(10);
+				mailSender.SendMail(mailText);
+			}
             else
 
             {
@@ -267,15 +282,7 @@ namespace Kalipso
 
         private void Form1_MouseClick(object sender, MouseEventArgs e)
         {
-            string cmd = "Time London";
-            string city = cmd.Split(' ').ToArray()[1];
-            TimeZoneInfo timeZoneInfo = TimeZoneInfo.FindSystemTimeZoneById(city);
-            DateTime utc = DateTime.UtcNow;
-            if (timeZoneInfo != null)
-            {
-                var time = TimeZoneInfo.ConvertTime(utc, timeZoneInfo);
-                textBoxAns.Text = "Time at " + city + " " + time.ToString("hh:mm tt");
-            }
+			textBoxAns.Text = "Am tradus: " + translator.Translate("I want gifts");
         }
     }
 }

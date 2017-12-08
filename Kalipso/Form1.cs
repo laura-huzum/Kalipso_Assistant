@@ -43,6 +43,11 @@ namespace Kalipso
 		MailSender mailSender;
 		public Translator translator;
 
+		string pathToConv;
+		bool waitForNext;
+		bool learnNow;
+		string lastQuestion;
+
 		Dictionary<string, int> timeoffsetEU = new Dictionary<string, int>()
 		{
 			{ "Accra", -2 },
@@ -106,6 +111,17 @@ namespace Kalipso
             btnOk.Enabled = false;
 
 			mailSender = new MailSender();
+
+			var systemPath = System.Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+			pathToConv = Path.Combine(systemPath, "Conversation.txt");
+
+
+			if (!File.Exists(pathToConv))
+			{
+				File.Create(pathToConv);
+			}
+
+			waitForNext = false;
 		}
 
 		void waveIn_DataAvailable(object sender, WaveInEventArgs e)
@@ -131,7 +147,34 @@ namespace Kalipso
         {
 			currentCmd = currentCmd.ToLower().Trim();
 
-            if (currentCmd.Equals("battery"))
+			if(waitForNext)
+			{
+				if(learnNow)
+				{
+					using (FileStream fs = new FileStream(pathToConv, FileMode.Append, FileAccess.Write))
+					using (StreamWriter sw = new StreamWriter(fs))
+					{
+						sw.WriteLine(lastQuestion + "-" + currentCmd);
+						textBoxAns.Text = "Now I know. Try me!";
+					}
+
+						learnNow = false;
+					waitForNext = false;
+				}
+				else if(currentCmd.StartsWith("no"))
+				{
+					waitForNext = false;
+				}
+				else if(currentCmd.StartsWith("yes"))
+				{
+					learnNow = true;
+					textBoxAns.Text = "Ok, I listen...";
+				}
+
+				return;
+			}
+
+			if (currentCmd.Equals("battery"))
             {
                 PowerStatus status = SystemInformation.PowerStatus;
                 textBoxAns.Text = "Battery:" + status.BatteryLifePercent.ToString("P0");
@@ -208,16 +251,38 @@ namespace Kalipso
 
 			else if (currentCmd.Trim().StartsWith("currency"))
 			{
-				if (currentCmd.Split(' ').ToArray().Count() < 4)
-					textBoxAns.Text = "This command doesn't look complete, are you sure this is what you wanted to say? \r\n" + currentCmd;
-				textBoxAns.Text = "Here's the sum I got, from today's rates: " + conversionCMD(currentCmd);
+				
+				float converted_value = conversionCMD(currentCmd);
+				if (converted_value != -1)
+				{
+					textBoxAns.Text = "Here's the sum I got, from today's rates: " + conversionCMD(currentCmd);
+				}
 			}
 			else
-
-
-            {
-                textBoxAns.Text = ("de bota sa ma iei");
-            }
+			{
+				bool found = false;
+				string line;
+				
+				using (System.IO.StreamReader file = new System.IO.StreamReader(pathToConv))
+				{
+					while ((line = file.ReadLine()) != null)
+					{
+						string[] parts = line.Split('-');
+						if (string.Equals(parts[0], currentCmd))
+						{
+							textBoxAns.Text = parts[1];
+							found = true;
+							break;
+						}
+					}
+				}
+				if (!found)
+				{ 
+					textBoxAns.Text = "I don't know the answear to this. Wanna teach me?";
+					lastQuestion = currentCmd;
+					waitForNext = true;
+				}
+			}
         }
 
         private void Decode()
@@ -394,24 +459,44 @@ namespace Kalipso
 
 			string from, to;
 			from = "";
-			int value;
 			string[] parts = cmd.Trim().Split(' ').ToArray();
-			if (parts[1].Contains('$'))
-			{
-				value = int.Parse(parts[1].Substring(1));
-				from = "USD";
-			}
-			else
-			{
-				value = int.Parse(parts[1]);
-			}
+			
 
-			string pattern = @"currency [$0-9]+ ?(?<from>\w+)? to (?<to>\w+)";
+			string pattern = @"currency (?<value>[$0-9A-Za-z]+) ?(?<from>\w+)? to (?<to>\w+)";
 			Match m = Regex.Match(cmd, pattern);
 			if (!m.Success)
-				Debug.WriteLine("no match");
+			{
+				textBoxAns.Text = "This command doesn't look complete, are you sure this is what you wanted to say? \r\n" + currentCmd; ;
+				return -1;
+			}
+			
+			
 
 			Debug.WriteLine(m.Groups["from"].Value + " to " + m.Groups["to"].Value + "\n");
+
+			string value = m.Groups["value"].Value;
+			if (value.Contains('$'))
+			{
+				value = value.Substring(1);
+				from = "USD";
+			}
+			if (!value.All(char.IsDigit))
+			{
+				switch (value)
+				{
+					case "one": value = "1"; break;
+					case "two": value = "2"; break;
+					case "three": value = "3"; break;
+					case "four": value = "4"; break;
+					case "five": value = "5"; break;
+					case "six": value = "6"; break;
+					case "seven": value = "7"; break;
+					case "eight": value = "8"; break;
+					case "nine": value = "9"; break;
+					
+
+				}
+			}
 
 			if (m.Groups["from"].Value.Length != 0)
 			{
@@ -430,7 +515,7 @@ namespace Kalipso
 				return -1;
 			}
 
-			return CurrencyConvert(value, from, to);
+			return CurrencyConvert(int.Parse(value), from, to);
 		}
 
 		public float CurrencyConvert(decimal amount, string fromCurrency, string toCurrency)

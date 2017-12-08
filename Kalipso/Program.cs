@@ -14,9 +14,19 @@ namespace Kalipso
         [STAThread]
         static void Main()
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new Form1());
+			try
+			{
+				Translator trans = new Translator();
+				Form1 form = new Form1();
+				form.translator = trans;
+				Application.EnableVisualStyles();
+				//Application.SetCompatibleTextRenderingDefault(false);
+				Application.Run(form);
+			}
+			catch(Exception e)
+			{
+				Console.WriteLine(e.Message);
+			}
         }
     }
 }

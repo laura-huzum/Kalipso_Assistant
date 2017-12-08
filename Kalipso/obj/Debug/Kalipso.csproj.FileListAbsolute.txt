@@ -97,3 +97,4 @@ C:\Users\Ana\Documents\GitHub\Kalipso_Assistant\Kalipso\bin\Debug\Grpc.Core.xml
 C:\Users\Ana\Documents\GitHub\Kalipso_Assistant\Kalipso\bin\Debug\NAudio.xml
 C:\Users\Ana\Documents\GitHub\Kalipso_Assistant\Kalipso\bin\Debug\Newtonsoft.Json.xml
 C:\Users\Ana\Documents\GitHub\Kalipso_Assistant\Kalipso\bin\Debug\System.Interactive.Async.xml
+C:\Users\Ana\Documents\GitHub\Kalipso_Assistant\Kalipso\bin\Debug\System.Data.SqlServerCe.dll

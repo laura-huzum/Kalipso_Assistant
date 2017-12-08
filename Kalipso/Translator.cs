@@ -9,7 +9,7 @@ using Microsoft.Translator.Samples;
 
 namespace Kalipso
 {
-	class Translator
+	public class Translator
 	{
 		public static string authTokenTranslate;
 

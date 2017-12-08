@@ -17,6 +17,9 @@ using Grpc.Auth;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.Mail;
+using System.Data.SqlServerCe;
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 
 namespace Kalipso
@@ -24,8 +27,13 @@ namespace Kalipso
     public partial class Form1 : Form
     {
         private BufferedWaveProvider bwp;
+		private const string API_KEY = "c5b4575db91c170538c449d22b7d1233";
+		// change to celsius
+		private const string CurrentUrl =
+		"http://api.openweathermap.org/data/2.5/weather?" +
+		"q=@LOC@&mode=xml&units=metric&APPID=" + API_KEY;
 
-        WaveIn waveIn;
+		WaveIn waveIn;
         WaveOut waveOut;
         WaveFileWriter writer;
         //WaveFileReader reader;
@@ -33,40 +41,59 @@ namespace Kalipso
         string currentCmd;
 
 		MailSender mailSender;
-		Translator translator;
+		public Translator translator;
 
-        Dictionary<String, int> timeoffsetEU = new Dictionary<string, int>()
-        {
-            { "Accra", 0 },
-            { "Dublin", 0 },
-            { "Lisbon", 0 },
-            { "London", 0 },
+		Dictionary<string, int> timeoffsetEU = new Dictionary<string, int>()
+		{
+			{ "Accra", -2 },
+			{ "Dublin", -2 },
+			{ "Lisbon", -2 },
+			{ "London", -2 },
 
-            { "Berlin", 1 },
-            { "Madrid", 1 },
-            { "Paris", 1 },
-            { "Rome", 1 },
-            { "Vienna", 1 },
-            { "Warsaw", 1 },
+			{ "Berlin", -1 },
+			{ "Madrid", -1 },
+			{ "Paris", -1 },
+			{ "Rome", -1 },
+			{ "Vienna", -1 },
+			{ "Warsaw", -1 },
 
-            { "Athens", 2 },
-            { "Bucharest", 2 },
-            { "Helsinki", 2 },
-            { "Jerusalem", 2 },
-            { "Kiev", 2 },
+			{ "Athens", 0 },
+			{ "Bucharest", 0 },
+			{ "Helsinki", 0 },
+			{ "Jerusalem", 0 },
+			{ "Kiev", 0 },
 
-            { "Istanbul", 3 },
-            { "Moscow", 3 },
-            { "Minsk", 3 },
-            
-        };
+			{ "Istanbul", 1 },
+			{ "Moscow", 1 },
+			{ "Minsk", 1 }
+
+		};
 
 
-        public Form1()
+		Dictionary<string, string> currency_codes = new Dictionary<string, string>()
+		{
+			{ "russian ruble", "RUB" },
+			{ "russian rubles", "RUB" },
+			{ "romanian lei", "RON" },
+			{ "romanian leu", "RON" },
+			{ "dollar", "USD" },
+			{ "dollars", "USD" },
+			{ "pound", "GBP" },
+			{ "pounds", "GBP" },
+			{ "peso", "MXN"},
+			{ "pesos", "MXN"},
+			{ "euro", "EUR" },
+			{ "euros", "EUR" },
+			{ "yen", "JPY" }
+
+		};
+
+
+		public Form1()
         {
             InitializeComponent();
 
-            waveOut = new WaveOut();
+			waveOut = new WaveOut();
             waveIn = new WaveIn();
 
             waveIn.DataAvailable += new EventHandler<WaveInEventArgs>(waveIn_DataAvailable);
@@ -79,10 +106,9 @@ namespace Kalipso
             btnOk.Enabled = false;
 
 			mailSender = new MailSender();
-			//translator = new Translator();
 		}
 
-        void waveIn_DataAvailable(object sender, WaveInEventArgs e)
+		void waveIn_DataAvailable(object sender, WaveInEventArgs e)
         {
             bwp.AddSamples(e.Buffer, 0, e.BytesRecorded);
 
@@ -165,8 +191,29 @@ namespace Kalipso
 			{
 				string mailText = currentCmd.Trim().Substring(10);
 				mailSender.SendMail(mailText);
+				textBoxAns.Text = "Mail sent!";
 			}
-            else
+			else if(currentCmd.StartsWith("translate") && currentCmd.Length > 9)
+			{
+				string toTranslate = currentCmd.Substring(currentCmd.IndexOf(' ') + 1);
+				textBoxAns.Text = toTranslate + " = " + translator.Translate(toTranslate);
+			}
+			else if (currentCmd.Trim().StartsWith("weather") && currentCmd.Trim().Count(f => f == ' ') == 1)
+			{
+				string city = currentCmd.Trim().Split(' ').ToArray()[1];
+				textBoxAns.Text = getWeatherSummary(city);
+
+
+			}
+
+			else if (currentCmd.Trim().StartsWith("currency"))
+			{
+				if (currentCmd.Split(' ').ToArray().Count() < 4)
+					textBoxAns.Text = "This command doesn't look complete, are you sure this is what you wanted to say? \r\n" + currentCmd;
+				textBoxAns.Text = "Here's the sum I got, from today's rates: " + conversionCMD(currentCmd);
+			}
+			else
+
 
             {
                 textBoxAns.Text = ("de bota sa ma iei");
@@ -282,7 +329,133 @@ namespace Kalipso
 
         private void Form1_MouseClick(object sender, MouseEventArgs e)
         {
-			textBoxAns.Text = "Am tradus: " + translator.Translate("I want gifts");
+			//textBoxAns.Text = "Am tradus: " + translator.Translate("I want gifts");
         }
-    }
+
+		// Get meteo conditions
+		private string getConditions(string city)
+		{
+			// Compose the query URL
+			string url = CurrentUrl.Replace("@LOC@", city);
+			string textXML = GetFormattedXml(url);
+			int startIndex = textXML.IndexOf("temp");
+			int length = (textXML.IndexOf("visibility") - 4) - startIndex;
+			return textXML.Substring(startIndex, length);
+
+		}
+
+		private string GetFormattedXml(string url)
+		{
+			// Create a web client.
+			using (WebClient client = new WebClient())
+			{
+				// Get the response string from the URL.
+				string xml = client.DownloadString(url);
+				return xml;
+			}
+		}
+
+		private string getWeatherSummary(string city)
+		{
+			string current_weather = getConditions(city);
+			string pattern = @"[0-9]+\.?[0-9]*";
+			// parse data
+
+			Match m = Regex.Match(current_weather, pattern);
+
+			string text = "Here is the current weather information for " + city + ":\r\n";
+			text = text + "Temperature: " + m.Value + "°C\r\n";
+
+			m = m.NextMatch();
+			m = m.NextMatch();
+			m = m.NextMatch();
+
+			text = text + "Humidity: " + m.Value + "%\r\n";
+
+			m = m.NextMatch();
+
+			text = text + "Pressure: " + m.Value + "hPa\r\n";
+
+			// different regex
+			pattern = @"name=(.*)></speed>";
+			m = Regex.Match(current_weather, pattern);
+			text = text + "Wind conditions: " + m.Groups[1].Value + "\r\n";
+
+			pattern = @"clouds value.*name=(.*)></clo";
+			m = Regex.Match(current_weather, pattern);
+			text = text + "Sky: " + m.Groups[1].Value;
+
+			return text;
+		}
+
+
+		public float conversionCMD(string cmd)
+		{
+
+			string from, to;
+			from = "";
+			int value;
+			string[] parts = cmd.Trim().Split(' ').ToArray();
+			if (parts[1].Contains('$'))
+			{
+				value = int.Parse(parts[1].Substring(1));
+				from = "USD";
+			}
+			else
+			{
+				value = int.Parse(parts[1]);
+			}
+
+			string pattern = @"currency [$0-9]+ ?(?<from>\w+)? to (?<to>\w+)";
+			Match m = Regex.Match(cmd, pattern);
+			if (!m.Success)
+				Debug.WriteLine("no match");
+
+			Debug.WriteLine(m.Groups["from"].Value + " to " + m.Groups["to"].Value + "\n");
+
+			if (m.Groups["from"].Value.Length != 0)
+			{
+				//from = m.Groups["from"].Value;
+				if (!currency_codes.TryGetValue(m.Groups["from"].Value, out from))
+				{
+					textBoxAns.Text = "I didn't understand the first currency :(";
+					return -1;
+				}
+			}
+
+
+			if (!currency_codes.TryGetValue(m.Groups["to"].Value, out to))
+			{
+				textBoxAns.Text = "I didn't understand the second currency :'(";
+				return -1;
+			}
+
+			return CurrencyConvert(value, from, to);
+		}
+
+		public float CurrencyConvert(decimal amount, string fromCurrency, string toCurrency)
+		{
+
+			//Grab your values and build your Web Request to the API
+			//https://coinmill.com/{0}_{1}.html?{0}={2}
+			string apiURL = String.Format("https://coinmill.com/{0}_{1}.html?{0}={2}", fromCurrency, toCurrency, amount);
+
+			//Make your Web Request and grab the results
+			var request = WebRequest.Create(apiURL);
+			//request.UseDefaultCredentials = true;
+			//request.Proxy.Credentials = System.Net.CredentialCache.DefaultCredentials;
+			//Get the Response
+			var streamReader = new StreamReader(request.GetResponse().GetResponseStream(), System.Text.Encoding.ASCII);
+
+			//Grab your converted value (ie 2.45 USD)
+			string pattern = "name=\"" + toCurrency + "\" value=\"([0-9]+\\.?[0-9]*)\"";
+			//Debug.WriteLine(streamReader.ReadToEnd());
+			Debug.WriteLine(pattern);
+
+			Match result = Regex.Match(streamReader.ReadToEnd(), pattern);
+
+			return float.Parse(result.Groups[1].Value);
+
+		}
+	}
 }

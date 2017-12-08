@@ -43,7 +43,7 @@ namespace Kalipso
 			{
 				string person = command.Substring(0, command.IndexOf(' '));
 				if (string.IsNullOrEmpty(person))
-					throw new Exception("Mail usage: Send mail [person] [body]");
+					throw new Exception("Mail usage: Send mail to [person] [body]");
 
 				string body = command.Substring(command.IndexOf(' ') + 1);
 				if (string.IsNullOrEmpty(person))

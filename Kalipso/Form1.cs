@@ -230,9 +230,9 @@ namespace Kalipso
                 //textBoxAns.Text = "Time at " + city + " " +  time.ToString("hh:mm tt");
                 
             }
-			else if (currentCmd.StartsWith("send mail"))
+			else if (currentCmd.StartsWith("send mail to"))
 			{
-				string mailText = currentCmd.Trim().Substring(10);
+				string mailText = currentCmd.Trim().Substring(13);
 				mailSender.SendMail(mailText);
 				textBoxAns.Text = "Mail sent!";
 			}
